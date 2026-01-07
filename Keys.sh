@@ -1,63 +1,16 @@
 #!/bin/bash
-# Keys module for Ez
-# Handles: letters, numbers, symbols, arrows, ENTER, ESC
-# Supports multiple variables and :+ operator
+# Keys v2.0 module for Ez
+# Fully supports letters, numbers, symbols, arrows, ENTER, ESC
+# Supports multiple variables in one Input() call with :+ operator
+# Ready for ed install
 
 # -------------------------------
-# Variables array from Ez
+# Ez interpreter variable reference
 # -------------------------------
-declare -n ez_vars_ref=ez_vars  # reference to Ez interpreter variables
-
-# -------------------------------
-# Read a single key (full)
-# -------------------------------
-function ez_read_key_full() {
-    # read first char
-    read -rsn1 key1
-    key="$key1"
-
-    # check for escape sequences (arrows, function keys)
-    if [[ "$key1" == $'\e' ]]; then
-        read -rsn2 -t 0.01 key2  # read extra chars if arrow
-        key="$key1$key2"
-    fi
-
-    # Map ENTER
-    if [[ "$key" == $'\n' ]]; then
-        key="ENTER"
-    fi
-
-    # Map ESC
-    if [[ "$key" == $'\e' ]]; then
-        key="ESC"
-    fi
-
-    echo "$key"
-}
+declare -n ez_vars_ref=ez_vars  # links to Ez interpreter variable array
 
 # -------------------------------
-# Input processor for multiple keys
-# Example usage in Ez:
-# Input(Arrow_left, Arrow_right, a, d (:+ -1, 1, -1, 1 = x))
-# -------------------------------
-function ez_input_keys() {
-    local keys=("${!1}")     # array of key names
-    local values=("${!2}")   # array of corresponding values
-    local varname="$3"       # variable to update
-
-    key=$(ez_read_key_full)
-
-    for i in "${!keys[@]}"; do
-        if [[ "${keys[i]}" == "$key" ]]; then
-            old="${ez_vars_ref[$varname]:-0}"
-            new=$(( old + values[i] ))
-            ez_vars_ref["$varname"]="$new"
-        fi
-    done
-}
-
-# -------------------------------
-# Helper: Map arrow escape sequences
+# Map arrow keys and special keys
 # -------------------------------
 declare -A EZ_KEYMAP
 EZ_KEYMAP["$'\e[A'"]="Arrow_up"
@@ -67,32 +20,47 @@ EZ_KEYMAP["$'\e[D'"]="Arrow_left"
 EZ_KEYMAP["$'\n'"]="ENTER"
 EZ_KEYMAP["$'\e'"]="ESC"
 
-# Convert read key to standard key name
-function ez_key_name() {
-    local raw="$1"
-    if [[ -n "${EZ_KEYMAP[$raw]}" ]]; then
-        echo "${EZ_KEYMAP[$raw]}"
-    else
-        echo "$raw"  # letters, numbers, symbols
+# -------------------------------
+# Read a single key from terminal
+# -------------------------------
+function ez_read_key_full() {
+    read -rsn1 key1
+    key="$key1"
+
+    # Check escape sequences
+    if [[ "$key1" == $'\e' ]]; then
+        read -rsn2 -t 0.01 key2
+        key="$key1$key2"
     fi
+
+    # Map key names
+    if [[ -n "${EZ_KEYMAP[$key]}" ]]; then
+        key="${EZ_KEYMAP[$key]}"
+    fi
+
+    echo "$key"
 }
 
 # -------------------------------
 # Main Ez Input function
+# Usage example:
+# Input(a, d, Arrow_left, Arrow_right (:+ -1, 1, -1, 1 = x, y))
 # -------------------------------
 function Ez_Input() {
-    local keys=("${!1}")     # keys array
-    local values=("${!2}")   # values array
-    local varname="$3"       # variable to update
+    local keys=("${!1}")       # key names array
+    local values=("${!2}")     # values array
+    local varnames=("${!3}")   # variable names array
 
-    key_raw=$(ez_read_key_full)
-    key=$(ez_key_name "$key_raw")
+    key=$(ez_read_key_full)
 
     for i in "${!keys[@]}"; do
         if [[ "${keys[i]}" == "$key" ]]; then
-            old="${ez_vars_ref[$varname]:-0}"
-            new=$(( old + values[i] ))
-            ez_vars_ref["$varname"]="$new"
+            for var in "${varnames[@]}"; do
+                old="${ez_vars_ref[$var]:-0}"
+                new=$(( old + values[i] ))
+                ez_vars_ref["$var"]="$new"
+            done
         fi
     done
 }
+
